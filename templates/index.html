@@ -1,0 +1,312 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Maza Music Player</title>
+    <style>
+        :root {
+            --primary-color: #6c5ce7;
+            --secondary-color: #a29bfe;
+            --background: #dfe6e9;
+            --text-color: #2d3436;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: var(--background);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: var(--text-color);
+        }
+
+        .player-container {
+            background: var(--background);
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 20px 20px 60px #bebebe, -20px -20px 60px #ffffff;
+            width: 350px;
+            text-align: center;
+        }
+
+        .cd-animation {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto 25px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, #cacaca, #f0f0f0);
+            box-shadow: 20px 20px 60px #bebebe, -20px -20px 60px #ffffff;
+            animation: rotate 20s linear infinite;
+            animation-play-state: paused;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="%236c5ce7" opacity="0.2"/><circle cx="50" cy="50" r="10" fill="%23ffffff"/></svg>');
+            background-size: cover;
+        }
+
+        @keyframes rotate {
+            100% { transform: rotate(360deg); }
+        }
+
+        .controls {
+            margin: 20px 0;
+        }
+
+        .url-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: none;
+            border-radius: 10px;
+            background: var(--background);
+            box-shadow: inset 5px 5px 10px #bebebe, inset -5px -5px 10px #ffffff;
+        }
+
+        .progress-container {
+            background: #ddd;
+            border-radius: 5px;
+            margin: 10px 0;
+            height: 5px;
+            cursor: pointer;
+        }
+
+        .progress {
+            background: var(--primary-color);
+            border-radius: 5px;
+            height: 100%;
+            width: 0%;
+        }
+
+        .time-display {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            margin-bottom: 10px;
+        }
+
+        .control-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 15px 0;
+        }
+
+        button {
+            border: none;
+            background: var(--background);
+            color: var(--text-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            box-shadow: 5px 5px 10px #bebebe, -5px -5px 10px #ffffff;
+            transition: all 0.2s;
+        }
+
+        button:active {
+            box-shadow: inset 5px 5px 10px #bebebe, inset -5px -5px 10px #ffffff;
+        }
+
+        .volume-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 15px 0;
+        }
+
+        .status {
+            margin: 10px 0;
+            font-size: 14px;
+        }
+
+        .title {
+            margin: 10px 0;
+            font-weight: bold;
+            height: 20px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="player-container">
+        <div class="cd-animation" id="cd"></div>
+        
+        <div class="title" id="title">Enter YouTube URL to begin</div>
+        
+        <input type="text" class="url-input" id="urlInput" placeholder="Enter YouTube URL">
+        
+        <div class="controls">
+            <div class="time-display">
+                <span id="currentTime">0:00</span>
+                <span id="totalTime">0:00</span>
+            </div>
+            
+            <div class="progress-container" id="progressContainer">
+                <div class="progress" id="progress"></div>
+            </div>
+            
+            <div class="control-buttons">
+                <button id="rewind">⏮️</button>
+                <button id="playPause">▶️</button>
+                <button id="stop">⏹️</button>
+                <button id="forward">⏭️</button>
+                <button id="download">💾</button>
+            </div>
+            
+            <div class="volume-control">
+                <span>🔈</span>
+                <input type="range" id="volume" min="0" max="1" step="0.1" value="0.5">
+                <span>🔊</span>
+            </div>
+            
+            <div class="status" id="status">Ready to play</div>
+        </div>
+    </div>
+
+    <audio id="audioPlayer"></audio>
+
+    <script>
+        const audio = document.getElementById('audioPlayer');
+        const cd = document.getElementById('cd');
+        const playPauseBtn = document.getElementById('playPause');
+        const stopBtn = document.getElementById('stop');
+        const rewindBtn = document.getElementById('rewind');
+        const forwardBtn = document.getElementById('forward');
+        const downloadBtn = document.getElementById('download');
+        const volumeSlider = document.getElementById('volume');
+        const progressContainer = document.getElementById('progressContainer');
+        const progress = document.getElementById('progress');
+        const currentTimeEl = document.getElementById('currentTime');
+        const totalTimeEl = document.getElementById('totalTime');
+        const statusEl = document.getElementById('status');
+        const urlInput = document.getElementById('urlInput');
+        const titleEl = document.getElementById('title');
+
+        let isPlaying = false;
+
+        audio.addEventListener('loadedmetadata', () => {
+            totalTimeEl.textContent = formatTime(audio.duration);
+        });
+
+        audio.addEventListener('timeupdate', () => {
+            const currentTime = audio.currentTime;
+            const duration = audio.duration;
+            
+            currentTimeEl.textContent = formatTime(currentTime);
+            progress.style.width = (currentTime / duration) * 100 + '%';
+        });
+
+        audio.addEventListener('play', () => {
+            isPlaying = true;
+            playPauseBtn.textContent = '⏸️';
+            statusEl.textContent = 'Playing';
+            cd.style.animationPlayState = 'running';
+        });
+
+        audio.addEventListener('pause', () => {
+            isPlaying = false;
+            playPauseBtn.textContent = '▶️';
+            statusEl.textContent = 'Paused';
+            cd.style.animationPlayState = 'paused';
+        });
+
+        audio.addEventListener('ended', () => {
+            isPlaying = false;
+            playPauseBtn.textContent = '▶️';
+            statusEl.textContent = 'Ended';
+            cd.style.animationPlayState = 'paused';
+        });
+
+        playPauseBtn.addEventListener('click', () => {
+            if (audio.src) {
+                if (isPlaying) {
+                    audio.pause();
+                } else {
+                    audio.play();
+                }
+            } else {
+                loadAudio();
+            }
+        });
+
+        stopBtn.addEventListener('click', () => {
+            audio.pause();
+            audio.currentTime = 0;
+            isPlaying = false;
+            playPauseBtn.textContent = '▶️';
+            statusEl.textContent = 'Stopped';
+            cd.style.animationPlayState = 'paused';
+        });
+
+        rewindBtn.addEventListener('click', () => {
+            audio.currentTime = Math.max(0, audio.currentTime - 15);
+        });
+
+        forwardBtn.addEventListener('click', () => {
+            audio.currentTime = Math.min(audio.duration, audio.currentTime + 15);
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            if (audio.src) {
+                window.location.href = '/download';
+            }
+        });
+
+        volumeSlider.addEventListener('input', () => {
+            audio.volume = volumeSlider.value;
+            statusEl.textContent = `Volume: ${Math.round(volumeSlider.value * 100)}%`;
+        });
+
+        progressContainer.addEventListener('click', (e) => {
+            const rect = progressContainer.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const clickedValue = x / rect.width;
+            audio.currentTime = clickedValue * audio.duration;
+        });
+
+        urlInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                loadAudio();
+            }
+        });
+
+        function loadAudio() {
+            const url = urlInput.value.trim();
+            if (!url) return;
+
+            statusEl.textContent = 'Loading...';
+            
+            fetch(`/get_audio?url=${encodeURIComponent(url)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        statusEl.textContent = 'Error: ' + data.error;
+                        return;
+                    }
+                    
+                    audio.src = data.audio_url;
+                    titleEl.textContent = data.title;
+                    audio.play();
+                })
+                .catch(error => {
+                    statusEl.textContent = 'Error: ' + error.message;
+                });
+        }
+
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+    </script>
+</body>
+</html>
